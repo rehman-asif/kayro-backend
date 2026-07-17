@@ -1,27 +1,70 @@
 const Admin = require('../models/Admin');
 const { generateAdminTokens } = require('../utils/generateToken');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
-// ─── Cookie Options ──────────────────────────────────────────────────────────
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  // 'none' required for Netlify (frontend) ↔ Railway (API) cross-site cookies
   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
 };
 
 const setAdminCookies = (res, accessToken, refreshToken) => {
   res.cookie('admin_token', accessToken, {
     ...cookieOptions,
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    maxAge: 15 * 60 * 1000,
   });
   res.cookie('admin_refresh_token', refreshToken, {
     ...cookieOptions,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
 
-// ─── @POST /api/admin/auth/login ──────────────────────────────────────────────
+const adminRegister = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      res.status(400);
+      throw new Error('Please provide name, email, and password');
+    }
+    if (password.length < 6) {
+      res.status(400);
+      throw new Error('Password must be at least 6 characters');
+    }
+
+    const existing = await Admin.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      res.status(409);
+      throw new Error('An admin account with this email already exists');
+    }
+
+    const adminCount = await Admin.countDocuments();
+    const admin = await Admin.create({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password,
+      role: adminCount === 0 ? 'superadmin' : 'admin',
+    });
+
+    const { accessToken, refreshToken } = generateAdminTokens(admin);
+    setAdminCookies(res, accessToken, refreshToken);
+
+    res.status(201).json({
+      success: true,
+      message: 'Admin account created successfully',
+      data: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const adminLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -31,7 +74,6 @@ const adminLogin = async (req, res, next) => {
       throw new Error('Please provide email and password');
     }
 
-    // Only check against Admin collection
     const admin = await Admin.findOne({ email: email.toLowerCase().trim() });
     if (!admin) {
       res.status(401);
@@ -44,10 +86,7 @@ const adminLogin = async (req, res, next) => {
       throw new Error('Invalid admin credentials');
     }
 
-    // Generate admin-specific tokens (signed with JWT_ADMIN_SECRET)
     const { accessToken, refreshToken } = generateAdminTokens(admin);
-
-    // Set separate admin httpOnly cookies
     setAdminCookies(res, accessToken, refreshToken);
 
     res.status(200).json({
@@ -65,7 +104,6 @@ const adminLogin = async (req, res, next) => {
   }
 };
 
-// ─── @POST /api/admin/auth/logout ─────────────────────────────────────────────
 const adminLogout = async (req, res, next) => {
   try {
     res.clearCookie('admin_token', cookieOptions);
@@ -80,10 +118,8 @@ const adminLogout = async (req, res, next) => {
   }
 };
 
-// ─── @GET /api/admin/auth/me ──────────────────────────────────────────────────
 const getAdminMe = async (req, res, next) => {
   try {
-    // req.admin is set by protectAdmin middleware
     res.status(200).json({
       success: true,
       data: {
@@ -99,7 +135,6 @@ const getAdminMe = async (req, res, next) => {
   }
 };
 
-// ─── @POST /api/admin/auth/refresh-token ──────────────────────────────────────
 const adminRefreshToken = async (req, res, next) => {
   try {
     const token = req.cookies?.admin_refresh_token || req.body?.refreshToken;
@@ -146,4 +181,89 @@ const adminRefreshToken = async (req, res, next) => {
   }
 };
 
-module.exports = { adminLogin, adminLogout, getAdminMe, adminRefreshToken };
+const adminForgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400);
+      throw new Error('Please provide your email address');
+    }
+
+    const admin = await Admin.findOne({ email: email.toLowerCase().trim() });
+    if (!admin) {
+      res.status(200).json({
+        success: true,
+        message: 'If an admin account exists for that email, a reset link has been generated.',
+      });
+      return;
+    }
+
+    const resetToken = admin.getResetPasswordToken();
+    await admin.save({ validateBeforeSave: false });
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const resetUrl = `${frontendUrl}/admin/reset-password/${resetToken}`;
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset link generated. Use the link below to set a new password.',
+      data: { resetUrl },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const adminResetPassword = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      res.status(400);
+      throw new Error('Password must be at least 6 characters');
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const admin = await Admin.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!admin) {
+      res.status(400);
+      throw new Error('Invalid or expired reset token');
+    }
+
+    admin.password = password;
+    admin.resetPasswordToken = undefined;
+    admin.resetPasswordExpire = undefined;
+    await admin.save();
+
+    const { accessToken, refreshToken } = generateAdminTokens(admin);
+    setAdminCookies(res, accessToken, refreshToken);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successful',
+      data: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  adminRegister,
+  adminLogin,
+  adminLogout,
+  getAdminMe,
+  adminRefreshToken,
+  adminForgotPassword,
+  adminResetPassword,
+};

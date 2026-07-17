@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const adminSchema = new mongoose.Schema(
   {
@@ -27,13 +28,14 @@ const adminSchema = new mongoose.Schema(
       default: 'admin',
       enum: ['admin', 'superadmin'],
     },
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
   },
   {
     timestamps: true,
   }
 );
 
-// Hash password before saving
 adminSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
     return next();
@@ -47,9 +49,15 @@ adminSchema.pre('save', async function (next) {
   }
 });
 
-// Compare password method
 adminSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+adminSchema.methods.getResetPasswordToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+  this.resetPasswordExpire = Date.now() + 60 * 60 * 1000;
+  return resetToken;
 };
 
 const Admin = mongoose.model('Admin', adminSchema);
