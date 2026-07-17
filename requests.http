@@ -1,0 +1,148 @@
+@baseUrl = http://localhost:5000
+@userEmail = testuser@example.com
+@userPassword = TestPass123!
+@adminEmail = admin@example.com
+@adminPassword = AdminPass123!
+
+###############################################################################
+#  HEALTH CHECK
+###############################################################################
+
+### Health Check
+GET {{baseUrl}}/api/health
+
+
+###############################################################################
+#  USER AUTH
+###############################################################################
+
+### Register a new user
+# @name register
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+###
+
+### Login as user
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+###
+
+### Get authenticated user profile (requires user_token cookie or Bearer token)
+GET {{baseUrl}}/api/auth/me
+# Authorization: Bearer <paste_access_token_here>
+
+###
+
+### Refresh user access token (uses httpOnly cookie automatically)
+POST {{baseUrl}}/api/auth/refresh-token
+
+###
+
+### Logout user
+POST {{baseUrl}}/api/auth/logout
+
+###
+
+###############################################################################
+#  ADMIN AUTH
+###############################################################################
+
+### Admin Login
+# First seed an admin: npm run seed-admin -- --name="Admin" --email="admin@example.com" --password="AdminPass123!"
+# @name adminLogin
+POST {{baseUrl}}/api/admin/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+
+### Get authenticated admin profile (requires admin_token cookie or Bearer token)
+GET {{baseUrl}}/api/admin/auth/me
+# Authorization: Bearer <paste_admin_access_token_here>
+
+###
+
+### Refresh admin access token
+POST {{baseUrl}}/api/admin/auth/refresh-token
+
+###
+
+### Admin Logout
+POST {{baseUrl}}/api/admin/auth/logout
+# Authorization: Bearer <paste_admin_access_token_here>
+
+###
+
+###############################################################################
+#  SECURITY CROSS-ROLE TESTS (should both return 401/403)
+###############################################################################
+
+### [SHOULD FAIL] Access admin /me with a USER token
+GET {{baseUrl}}/api/admin/auth/me
+Authorization: Bearer <paste_user_access_token_here>
+
+###
+
+### [SHOULD FAIL] Access user /me with an ADMIN token
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer <paste_admin_access_token_here>
+
+###
+
+###############################################################################
+#  HUBSPOT ROUTES (Admin Protected)
+###############################################################################
+
+### Look up a HubSpot contact by email (admin only)
+GET {{baseUrl}}/api/hubspot/contact?email={{userEmail}}
+# Authorization: Bearer <paste_admin_access_token_here>
+
+###
+
+###############################################################################
+#  ERROR HANDLING TESTS
+###############################################################################
+
+### Register with missing fields (should return 400)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "incomplete@example.com"
+}
+
+###
+
+### Login with wrong password (should return 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "WrongPassword!"
+}
+
+###
+
+### Access non-existent route (should return 404)
+GET {{baseUrl}}/api/nonexistent
+
+###
