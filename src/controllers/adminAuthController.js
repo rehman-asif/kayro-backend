@@ -6,7 +6,8 @@ const jwt = require('jsonwebtoken');
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  // 'none' required for Netlify (frontend) ↔ Railway (API) cross-site cookies
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
 };
 
 const setAdminCookies = (res, accessToken, refreshToken) => {

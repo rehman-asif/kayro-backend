@@ -21,17 +21,29 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   process.env.FRONTEND_URL,
+  ...(process.env.FRONTEND_URLS
+    ? process.env.FRONTEND_URLS.split(',').map((o) => o.trim()).filter(Boolean)
+    : []),
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g., Postman, curl in dev)
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (e.g., Postman, curl, server-to-server)
+      if (!origin) {
         callback(null, true);
-      } else {
-        callback(new Error(`CORS policy: Origin '${origin}' is not allowed`));
+        return;
       }
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      // Allow Netlify production + deploy-preview URLs until FRONTEND_URL is set
+      if (/\.netlify\.app$/i.test(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS policy: Origin '${origin}' is not allowed`));
     },
     credentials: true, // Required to allow cookies with cross-origin requests
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
