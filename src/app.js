@@ -11,6 +11,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const hubspotRoutes = require('./routes/hubspotRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const productRoutes = require('./routes/productRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -95,6 +96,7 @@ app.use('/api/admin/auth', adminRoutes);
 app.use('/api/hubspot', hubspotRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
