@@ -1,7 +1,6 @@
-const { getContactByEmail } = require('../services/hubspotService');
+const { getContactByEmail, createOrUpdateContact } = require('../services/hubspotService');
 
 // ─── @GET /api/hubspot/contact?email=... ─────────────────────────────────────
-// Protected: admin only (applied via route middleware)
 const getContact = async (req, res, next) => {
   try {
     const { email } = req.query;
@@ -11,7 +10,7 @@ const getContact = async (req, res, next) => {
       throw new Error('Email query parameter is required');
     }
 
-    const contact = await getContactByEmail(email);
+    const contact = await getContactByEmail(String(email).trim().toLowerCase());
 
     if (!contact) {
       return res.status(404).json({
@@ -29,4 +28,39 @@ const getContact = async (req, res, next) => {
   }
 };
 
-module.exports = { getContact };
+// ─── @POST /api/hubspot/contact ───────────────────────────────────────────────
+// Body: { email, name? } — create or update contact in HubSpot (admin only)
+const syncContact = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const name = String(req.body.name || email.split('@')[0] || 'Customer').trim();
+
+    if (!email) {
+      res.status(400);
+      throw new Error('Email is required');
+    }
+
+    const contact = await createOrUpdateContact({ name, email });
+
+    if (!contact) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'HubSpot sync failed. Check HUBSPOT_ACCESS_TOKEN on the server and Private App scopes (contacts read/write).',
+      });
+    }
+
+    // Re-fetch so properties are complete for the UI
+    const full = (await getContactByEmail(email)) || contact;
+
+    res.status(200).json({
+      success: true,
+      message: 'Contact synced to HubSpot',
+      data: full,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getContact, syncContact };

@@ -2,6 +2,7 @@ const Admin = require('../models/Admin');
 const { generateAdminTokens } = require('../utils/generateToken');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { createOrUpdateContact } = require('../services/hubspotService');
 
 const cookieOptions = {
   httpOnly: true,
@@ -49,6 +50,9 @@ const adminRegister = async (req, res, next) => {
 
     const { accessToken, refreshToken } = generateAdminTokens(admin);
     setAdminCookies(res, accessToken, refreshToken);
+
+    // Sync admin to HubSpot (non-blocking)
+    createOrUpdateContact({ name: admin.name, email: admin.email });
 
     res.status(201).json({
       success: true,

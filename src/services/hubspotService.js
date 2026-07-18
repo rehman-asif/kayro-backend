@@ -9,7 +9,7 @@ const hubspotClient = require('../config/hubspot');
 const createOrUpdateContact = async (userData) => {
   if (!hubspotClient) {
     console.warn('[HubSpot] Client not initialized. Skipping contact sync.');
-    return;
+    return null;
   }
 
   try {
@@ -38,27 +38,30 @@ const createOrUpdateContact = async (userData) => {
           ],
         },
       ],
-      properties: ['email', 'firstname', 'lastname'],
+      properties: ['email', 'firstname', 'lastname', 'hs_lead_status', 'lifecyclestage'],
       limit: 1,
     });
 
     if (searchResponse.results && searchResponse.results.length > 0) {
       // Contact exists — update it
       const existingContactId = searchResponse.results[0].id;
-      await hubspotClient.crm.contacts.basicApi.update(existingContactId, {
+      const updated = await hubspotClient.crm.contacts.basicApi.update(existingContactId, {
         properties: contactProperties,
       });
       console.log(`[HubSpot] Contact updated for email: ${email} (id: ${existingContactId})`);
-    } else {
-      // Contact does not exist — create it
-      const createResponse = await hubspotClient.crm.contacts.basicApi.create({
-        properties: contactProperties,
-      });
-      console.log(`[HubSpot] New contact created for email: ${email} (id: ${createResponse.id})`);
+      return updated;
     }
+
+    // Contact does not exist — create it
+    const createResponse = await hubspotClient.crm.contacts.basicApi.create({
+      properties: contactProperties,
+    });
+    console.log(`[HubSpot] New contact created for email: ${email} (id: ${createResponse.id})`);
+    return createResponse;
   } catch (error) {
     // Log the error but do NOT re-throw — HubSpot failures must not block registration
     console.error('[HubSpot] Failed to sync contact:', error.message || error);
+    return null;
   }
 };
 
