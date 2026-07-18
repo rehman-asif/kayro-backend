@@ -15,7 +15,12 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 // ─── Security Middlewares ─────────────────────────────────────────────────────
-app.use(helmet());
+// Allow Netlify → Railway cross-origin API reads (default CORP same-origin blocks them)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
