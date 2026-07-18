@@ -1,6 +1,5 @@
 /**
- * Seed combo bestsellers as placeholders so the store isn't empty
- * while the client uploads correct product photos.
+ * Seed combo bestsellers as placeholders (upsert only — never deletes catalog).
  *
  * Usage: node scripts/seedComboBestsellers.js
  */
@@ -66,22 +65,6 @@ const COMBOS = [
 (async () => {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('Connected');
-
-  // Remove any non-combo leftover demo products if present
-  // (safe: only deletes known old static IDs that were never meant as client photos)
-  const oldDemoIds = [
-    'vitamin-c-serum', 'goji-berry-serum', 'vitamin-c-ha-serum', 'glow-serum',
-    'lavender-soap', 'goji-rosehip-soap', 'rooibos-soap', 'honey-oats-soap',
-    'rice-kaolin-soap', 'coconut-oat-soap', 'coffee-cedarwood-soap', 'neem-soap',
-    'hair-growth-oil', 'hair-butter', 'moisturizing-shampoo',
-    'coffee-scrub', 'stretch-mark-oil', 'turmeric-body-oil', 'glowing-face-body-oil',
-    'dark-spot-corrector', 'dark-inner-thigh-cream', 'dark-armpits-rollon',
-    'turmeric-glow-lotion', 'lemongrass-turmeric-wash',
-    'ylang-garden-diffuser', 'honey-queen-diffuser',
-    'lady-million', 'the-most-wanted', 'be-delicious',
-  ];
-  const removed = await Product.deleteMany({ productId: { $in: oldDemoIds } });
-  console.log('Removed old demo products:', removed.deletedCount);
 
   for (const combo of COMBOS) {
     await Product.findOneAndUpdate(

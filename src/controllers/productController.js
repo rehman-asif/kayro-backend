@@ -14,6 +14,7 @@ function toClientProduct(doc) {
     stock: doc.stock,
     isDynamic: doc.isDynamic,
     placeholder: Boolean(doc.placeholder),
+    comingSoon: Boolean(doc.comingSoon),
     marketing: doc.marketing,
     publishedAt: doc.publishedAt?.toISOString?.() ?? doc.publishedAt,
   };
