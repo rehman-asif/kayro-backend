@@ -14,6 +14,9 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
+// Trust Railway / reverse-proxy so rate-limit & secure cookies see real client IP
+app.set('trust proxy', 1);
+
 // ─── Security Middlewares ─────────────────────────────────────────────────────
 // Allow Netlify → Railway cross-origin API reads (default CORP same-origin blocks them)
 app.use(
