@@ -13,6 +13,7 @@ function toClientProduct(doc) {
     imageUrl: doc.imageUrl,
     stock: doc.stock,
     isDynamic: doc.isDynamic,
+    placeholder: Boolean(doc.placeholder),
     marketing: doc.marketing,
     publishedAt: doc.publishedAt?.toISOString?.() ?? doc.publishedAt,
   };
@@ -88,6 +89,7 @@ exports.createProduct = async (req, res, next) => {
       marketing,
       publishedAt,
       stock,
+      placeholder,
     } = req.body;
 
     if (!id || !name || !category || price == null || !description || !imageUrl) {
@@ -110,6 +112,7 @@ exports.createProduct = async (req, res, next) => {
       existing.marketing = marketing || existing.marketing;
       existing.publishedAt = publishedAt ? new Date(publishedAt) : existing.publishedAt;
       if (stock != null) existing.stock = Number(stock);
+      if (placeholder != null) existing.placeholder = Boolean(placeholder);
       await existing.save();
 
       return res.status(200).json({
@@ -133,11 +136,56 @@ exports.createProduct = async (req, res, next) => {
       publishedAt: publishedAt ? new Date(publishedAt) : new Date(),
       stock: stock != null ? Number(stock) : 25,
       isDynamic: true,
+      placeholder: Boolean(placeholder),
     });
 
     res.status(201).json({
       success: true,
       message: 'Product published',
+      data: toClientProduct(product),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @PATCH /api/products/:id (admin)
+exports.updateProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findOne({ productId: req.params.id });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const {
+      name,
+      category,
+      price,
+      description,
+      ingredients,
+      benefits,
+      featured,
+      imageUrl,
+      stock,
+      placeholder,
+    } = req.body;
+
+    if (name != null) product.name = String(name).trim();
+    if (category != null) product.category = category;
+    if (price != null) product.price = Number(price);
+    if (description != null) product.description = description;
+    if (ingredients != null) product.ingredients = ingredients;
+    if (benefits != null) product.benefits = Array.isArray(benefits) ? benefits : product.benefits;
+    if (featured != null) product.featured = Boolean(featured);
+    if (imageUrl != null) product.imageUrl = imageUrl;
+    if (stock != null) product.stock = Number(stock);
+    if (placeholder != null) product.placeholder = Boolean(placeholder);
+
+    await product.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Product updated',
       data: toClientProduct(product),
     });
   } catch (err) {
