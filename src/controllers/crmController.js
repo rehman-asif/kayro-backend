@@ -431,11 +431,28 @@ exports.markNotificationsRead = async (_req, res, next) => {
 };
 
 // ─── Settings ────────────────────────────────────────────────────────────────
+function toClientSettings(s) {
+  return {
+    businessName: s.businessName || 'The Precious Creations',
+    logoUrl: s.logoUrl || '/logo.png',
+    brandColor: s.brandColor || '#7A2E2E',
+    phone: s.phone || '',
+    whatsapp: s.whatsapp || '',
+    email: s.email || '',
+    address: s.address || '',
+    currency: s.currency || 'LSL',
+    currencySymbol: s.currencySymbol || 'M',
+    paymentMethods: Array.isArray(s.paymentMethods) ? s.paymentMethods : ['cash', 'card', 'mobile_money'],
+    deliveryFee: Number(s.deliveryFee || 0),
+    lowStockThreshold: Number(s.lowStockThreshold ?? 5),
+  };
+}
+
 exports.getSettings = async (_req, res, next) => {
   try {
     let s = await Settings.findOne({ key: 'business' });
     if (!s) s = await Settings.create({ key: 'business' });
-    res.status(200).json({ success: true, data: s });
+    res.status(200).json({ success: true, data: toClientSettings(s) });
   } catch (err) {
     next(err);
   }
@@ -443,12 +460,43 @@ exports.getSettings = async (_req, res, next) => {
 
 exports.updateSettings = async (req, res, next) => {
   try {
+    const allowed = [
+      'businessName',
+      'logoUrl',
+      'brandColor',
+      'phone',
+      'whatsapp',
+      'email',
+      'address',
+      'currency',
+      'currencySymbol',
+      'paymentMethods',
+      'deliveryFee',
+      'lowStockThreshold',
+    ];
+    const patch = { key: 'business' };
+    for (const key of allowed) {
+      if (req.body[key] != null) patch[key] = req.body[key];
+    }
+    if (patch.deliveryFee != null) patch.deliveryFee = Number(patch.deliveryFee) || 0;
+    if (patch.lowStockThreshold != null) patch.lowStockThreshold = Math.max(0, Number(patch.lowStockThreshold) || 0);
+    if (patch.paymentMethods != null && !Array.isArray(patch.paymentMethods)) {
+      patch.paymentMethods = String(patch.paymentMethods)
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+
     const s = await Settings.findOneAndUpdate(
       { key: 'business' },
-      { ...req.body, key: 'business' },
-      { new: true, upsert: true }
+      { $set: patch },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
     );
-    res.status(200).json({ success: true, data: s });
+    res.status(200).json({
+      success: true,
+      message: 'Settings saved',
+      data: toClientSettings(s),
+    });
   } catch (err) {
     next(err);
   }
