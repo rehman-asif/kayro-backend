@@ -3,17 +3,21 @@ const {
   listOrders,
   getOrderStats,
   createPosSale,
+  createOnlineCheckout,
+  updateOrder,
   voidOrder,
 } = require('../controllers/orderController');
 const { protectAdmin } = require('../middleware/adminAuth');
 
 const router = express.Router();
 
-router.use(protectAdmin);
+// Public storefront checkout
+router.post('/checkout', createOnlineCheckout);
 
-router.get('/stats', getOrderStats);
-router.get('/', listOrders);
-router.post('/pos', createPosSale);
-router.post('/:id/void', voidOrder);
+router.get('/stats', protectAdmin, getOrderStats);
+router.get('/', protectAdmin, listOrders);
+router.post('/pos', protectAdmin, createPosSale);
+router.patch('/:id', protectAdmin, updateOrder);
+router.post('/:id/void', protectAdmin, voidOrder);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const { generateAdminTokens } = require('../utils/generateToken');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { createOrUpdateContact } = require('../services/hubspotService');
+const { STAFF_ROLES } = require('../middleware/adminAuth');
 
 const cookieOptions = {
   httpOnly: true,
@@ -158,9 +159,9 @@ const adminRefreshToken = async (req, res, next) => {
       throw new Error('Invalid admin refresh token');
     }
 
-    if (decoded.role !== 'admin' && decoded.role !== 'superadmin') {
+    if (!STAFF_ROLES.includes(decoded.role)) {
       res.status(403);
-      throw new Error('Forbidden, not an admin token');
+      throw new Error('Forbidden, not a staff token');
     }
 
     const admin = await Admin.findById(decoded.id).select('-password');

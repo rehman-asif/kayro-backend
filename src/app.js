@@ -14,6 +14,7 @@ const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const blogRoutes = require('./routes/blogRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const crmRoutes = require('./routes/crmRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -101,6 +102,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/blog', blogRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/crm', crmRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res, next) => {

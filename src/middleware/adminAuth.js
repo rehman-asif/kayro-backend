@@ -1,18 +1,17 @@
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 
+const STAFF_ROLES = ['superadmin', 'admin', 'manager', 'sales_staff', 'pos_staff', 'delivery_staff'];
+
 /**
- * Middleware to verify admin JWT token (Access Token only)
+ * Middleware to verify admin/staff JWT access token
  */
 const protectAdmin = async (req, res, next) => {
   let token = null;
 
-  // 1. Read token from cookies (httpOnly)
   if (req.cookies && req.cookies.admin_token) {
     token = req.cookies.admin_token;
-  }
-  // 2. Fallback to Authorization Header (Bearer token)
-  else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   }
 
@@ -24,10 +23,8 @@ const protectAdmin = async (req, res, next) => {
   }
 
   try {
-    // Verify token using Admin JWT Secret
     const decoded = jwt.verify(token, process.env.JWT_ADMIN_SECRET);
 
-    // Guard against refresh tokens being used as access tokens
     if (decoded.tokenType !== 'access') {
       return res.status(401).json({
         success: false,
@@ -35,15 +32,13 @@ const protectAdmin = async (req, res, next) => {
       });
     }
 
-    // Verify role claims
-    if (decoded.role !== 'admin' && decoded.role !== 'superadmin') {
+    if (!STAFF_ROLES.includes(decoded.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Forbidden, admin access required',
+        message: 'Forbidden, staff access required',
       });
     }
 
-    // Verify the admin still exists
     const admin = await Admin.findById(decoded.id).select('-password');
     if (!admin) {
       return res.status(401).json({
@@ -52,12 +47,18 @@ const protectAdmin = async (req, res, next) => {
       });
     }
 
-    // Attach admin to request
+    if (admin.active === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'This staff account is disabled',
+      });
+    }
+
     req.admin = admin;
     next();
   } catch (error) {
     console.error('Admin Auth Middleware Error:', error.message);
-    
+
     let message = 'Not authorized as admin, token failed';
     if (error.name === 'TokenExpiredError') {
       message = 'Admin access token expired';
@@ -70,4 +71,15 @@ const protectAdmin = async (req, res, next) => {
   }
 };
 
-module.exports = { protectAdmin };
+/** Restrict to specific roles */
+const requireRoles = (...roles) => (req, res, next) => {
+  if (!req.admin || !roles.includes(req.admin.role)) {
+    return res.status(403).json({
+      success: false,
+      message: 'You do not have permission for this action',
+    });
+  }
+  next();
+};
+
+module.exports = { protectAdmin, requireRoles, STAFF_ROLES };

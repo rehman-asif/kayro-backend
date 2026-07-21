@@ -59,9 +59,28 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    sku: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    status: {
+      type: String,
+      enum: ['active', 'draft', 'out_of_stock', 'archived'],
+      default: 'active',
+    },
     stock: {
       type: Number,
       default: 25,
+      min: 0,
+    },
+    comingSoon: {
+      type: Boolean,
+      default: false,
+    },
+    lowStockThreshold: {
+      type: Number,
+      default: 5,
       min: 0,
     },
     marketing: {
@@ -77,10 +96,6 @@ const productSchema = new mongoose.Schema(
       default: true,
     },
     placeholder: {
-      type: Boolean,
-      default: false,
-    },
-    comingSoon: {
       type: Boolean,
       default: false,
     },

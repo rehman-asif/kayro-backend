@@ -12,6 +12,9 @@ function toClientProduct(doc) {
     featured: doc.featured,
     imageUrl: doc.imageUrl,
     stock: doc.stock,
+    sku: doc.sku || '',
+    status: doc.status || 'active',
+    lowStockThreshold: doc.lowStockThreshold ?? 5,
     isDynamic: doc.isDynamic,
     placeholder: Boolean(doc.placeholder),
     comingSoon: Boolean(doc.comingSoon),
@@ -168,6 +171,10 @@ exports.updateProduct = async (req, res, next) => {
       featured,
       imageUrl,
       stock,
+      sku,
+      status,
+      comingSoon,
+      lowStockThreshold,
       placeholder,
     } = req.body;
 
@@ -179,7 +186,15 @@ exports.updateProduct = async (req, res, next) => {
     if (benefits != null) product.benefits = Array.isArray(benefits) ? benefits : product.benefits;
     if (featured != null) product.featured = Boolean(featured);
     if (imageUrl != null) product.imageUrl = imageUrl;
-    if (stock != null) product.stock = Number(stock);
+    if (stock != null) {
+      product.stock = Number(stock);
+      if (product.stock <= 0) product.status = 'out_of_stock';
+      else if (product.status === 'out_of_stock') product.status = 'active';
+    }
+    if (sku != null) product.sku = String(sku).trim();
+    if (status != null) product.status = status;
+    if (comingSoon != null) product.comingSoon = Boolean(comingSoon);
+    if (lowStockThreshold != null) product.lowStockThreshold = Number(lowStockThreshold);
     if (placeholder != null) product.placeholder = Boolean(placeholder);
 
     await product.save();

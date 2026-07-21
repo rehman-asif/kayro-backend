@@ -26,7 +26,15 @@ const adminSchema = new mongoose.Schema(
     role: {
       type: String,
       default: 'admin',
-      enum: ['admin', 'superadmin'],
+      enum: ['superadmin', 'admin', 'manager', 'sales_staff', 'pos_staff', 'delivery_staff'],
+    },
+    active: {
+      type: Boolean,
+      default: true,
+    },
+    permissions: {
+      type: [String],
+      default: [],
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
