@@ -14,7 +14,12 @@ const settingsSchema = new mongoose.Schema(
     currencySymbol: { type: String, default: 'M' },
     paymentMethods: {
       type: [String],
-      default: ['cash', 'card', 'mobile_money', 'bank_transfer'],
+      default: ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer'],
+    },
+    mpesaMerchantNumber: {
+      type: String,
+      default: '80227',
+      trim: true,
     },
     deliveryFee: { type: Number, default: 0 },
     lowStockThreshold: { type: Number, default: 5 },

@@ -432,6 +432,11 @@ exports.markNotificationsRead = async (_req, res, next) => {
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 function toClientSettings(s) {
+  const methods = Array.isArray(s.paymentMethods) && s.paymentMethods.length
+    ? s.paymentMethods
+    : ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer'];
+  // Ensure mpesa is always available for checkout
+  if (!methods.includes('mpesa')) methods.unshift('mpesa');
   return {
     businessName: s.businessName || 'The Precious Creations',
     logoUrl: s.logoUrl || '/logo.png',
@@ -442,11 +447,46 @@ function toClientSettings(s) {
     address: s.address || '',
     currency: s.currency || 'LSL',
     currencySymbol: s.currencySymbol || 'M',
-    paymentMethods: Array.isArray(s.paymentMethods) ? s.paymentMethods : ['cash', 'card', 'mobile_money'],
+    paymentMethods: methods,
+    mpesaMerchantNumber: s.mpesaMerchantNumber || '80227',
     deliveryFee: Number(s.deliveryFee || 0),
     lowStockThreshold: Number(s.lowStockThreshold ?? 5),
   };
 }
+
+exports.getPublicPaymentInfo = async (_req, res, next) => {
+  try {
+    let s = await Settings.findOne({ key: 'business' });
+    if (!s) {
+      s = await Settings.create({
+        key: 'business',
+        mpesaMerchantNumber: '80227',
+        paymentMethods: ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer'],
+      });
+    } else if (!s.mpesaMerchantNumber) {
+      s.mpesaMerchantNumber = '80227';
+      if (!s.paymentMethods?.includes('mpesa')) {
+        s.paymentMethods = ['mpesa', ...(s.paymentMethods || [])];
+      }
+      await s.save();
+    }
+    const data = toClientSettings(s);
+    res.status(200).json({
+      success: true,
+      data: {
+        businessName: data.businessName,
+        phone: data.phone,
+        whatsapp: data.whatsapp,
+        currencySymbol: data.currencySymbol,
+        deliveryFee: data.deliveryFee,
+        paymentMethods: data.paymentMethods,
+        mpesaMerchantNumber: data.mpesaMerchantNumber,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 exports.getSettings = async (_req, res, next) => {
   try {
@@ -471,12 +511,16 @@ exports.updateSettings = async (req, res, next) => {
       'currency',
       'currencySymbol',
       'paymentMethods',
+      'mpesaMerchantNumber',
       'deliveryFee',
       'lowStockThreshold',
     ];
     const patch = { key: 'business' };
     for (const key of allowed) {
       if (req.body[key] != null) patch[key] = req.body[key];
+    }
+    if (patch.mpesaMerchantNumber != null) {
+      patch.mpesaMerchantNumber = String(patch.mpesaMerchantNumber).trim() || '80227';
     }
     if (patch.deliveryFee != null) patch.deliveryFee = Number(patch.deliveryFee) || 0;
     if (patch.lowStockThreshold != null) patch.lowStockThreshold = Math.max(0, Number(patch.lowStockThreshold) || 0);

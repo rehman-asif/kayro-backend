@@ -14,6 +14,7 @@ function toClientOrder(doc) {
     total: doc.total,
     deliveryFee: doc.deliveryFee || 0,
     paymentMethod: doc.paymentMethod,
+    paymentReference: doc.paymentReference || '',
     paymentStatus: doc.paymentStatus || 'pending',
     status: doc.status,
     customerId: doc.customerId ? String(doc.customerId) : null,
@@ -216,7 +217,7 @@ exports.getOrderStats = async (_req, res, next) => {
         bestSellers,
         monthly,
         salesGrowthPercent: Math.round(growth * 10) / 10,
-        paymentMethods: ['cash', 'card', 'mobile_money', 'cod', 'bank_transfer'],
+        paymentMethods: ['cash', 'card', 'mobile_money', 'cod', 'bank_transfer', 'mpesa'],
       },
     });
   } catch (err) {
@@ -234,7 +235,7 @@ exports.createPosSale = async (req, res, next) => {
       await session.abortTransaction();
       return res.status(400).json({ success: false, message: 'Add at least one product to the sale.' });
     }
-    const allowed = ['cash', 'card', 'mobile_money', 'other', 'bank_transfer'];
+    const allowed = ['cash', 'card', 'mobile_money', 'other', 'bank_transfer', 'mpesa'];
     if (!allowed.includes(paymentMethod)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, message: 'Invalid payment method.' });
@@ -305,6 +306,8 @@ exports.createOnlineCheckout = async (req, res, next) => {
       country,
       notes,
       deliveryMethod = 'delivery',
+      paymentMethod = 'mpesa',
+      paymentReference = '',
     } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -316,15 +319,34 @@ exports.createOnlineCheckout = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Name and phone are required.' });
     }
 
+    const allowedPay = ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer', 'other'];
+    const payMethod = allowedPay.includes(paymentMethod) ? paymentMethod : 'mpesa';
+
+    const Settings = require('../models/Settings');
+    let settings = await Settings.findOne({ key: 'business' });
+    if (!settings) settings = await Settings.create({ key: 'business', mpesaMerchantNumber: '80227' });
+    const deliveryFee =
+      deliveryMethod === 'pickup' ? 0 : Math.max(0, Number(settings.deliveryFee || 0));
+
     const { orderItems, subtotal } = await reserveStock(items, session);
+    const total = subtotal + deliveryFee;
     const customer = await upsertCustomerFromOrder({
       name,
       email,
       phone,
       location: [address, city, country].filter(Boolean).join(', '),
       source: 'website',
-      total: subtotal,
+      total,
     });
+
+    let orderNotes = String(notes || '').trim();
+    if (payMethod === 'mpesa') {
+      const merchant = settings.mpesaMerchantNumber || '80227';
+      const refNote = paymentReference
+        ? `M-PESA ref: ${String(paymentReference).trim()}`
+        : 'M-PESA payment pending confirmation';
+      orderNotes = [orderNotes, `Pay via M-PESA merchant ${merchant}`, refNote].filter(Boolean).join(' | ');
+    }
 
     const [order] = await Order.create(
       [
@@ -333,8 +355,10 @@ exports.createOnlineCheckout = async (req, res, next) => {
           source: 'online',
           items: orderItems,
           subtotal,
-          total: subtotal,
-          paymentMethod: 'cod',
+          deliveryFee,
+          total,
+          paymentMethod: payMethod,
+          paymentReference: String(paymentReference || '').trim(),
           paymentStatus: 'pending',
           status: 'new',
           customerId: customer?._id || null,
@@ -346,15 +370,15 @@ exports.createOnlineCheckout = async (req, res, next) => {
           deliveryCity: String(city || '').trim(),
           deliveryCountry: String(country || 'Lesotho').trim(),
           deliveryStatus: deliveryMethod === 'pickup' ? 'not_required' : 'pending',
-          notes: String(notes || '').trim(),
+          notes: orderNotes,
         },
       ],
       { session }
     );
 
     await session.commitTransaction();
-    await notify('new_order', 'New online order', `${order.orderNumber} from ${name}`);
-    await notify('pending_payment', 'Payment pending', `${order.orderNumber} awaits payment`);
+    await notify('new_order', 'New online order', `${order.orderNumber} from ${name} · ${payMethod}`);
+    await notify('pending_payment', 'Payment pending', `${order.orderNumber} awaits payment (${payMethod})`);
     res.status(201).json({ success: true, message: 'Order placed', data: toClientOrder(order) });
   } catch (err) {
     try { await session.abortTransaction(); } catch {}

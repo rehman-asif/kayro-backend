@@ -7,6 +7,7 @@ const router = express.Router();
 // Public
 router.post('/subscribe', crm.subscribe);
 router.post('/contact', crm.createContactLead);
+router.get('/payment-info', crm.getPublicPaymentInfo);
 
 // Admin CRM
 router.use(protectAdmin);
