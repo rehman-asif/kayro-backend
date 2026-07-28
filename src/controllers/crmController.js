@@ -432,11 +432,11 @@ exports.markNotificationsRead = async (_req, res, next) => {
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 function toClientSettings(s) {
-  const methods = Array.isArray(s.paymentMethods) && s.paymentMethods.length
-    ? s.paymentMethods
-    : ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer'];
-  // Ensure mpesa is always available for checkout
+  let methods = Array.isArray(s.paymentMethods) && s.paymentMethods.length
+    ? [...s.paymentMethods]
+    : ['mpesa', 'ecocash', 'cod'];
   if (!methods.includes('mpesa')) methods.unshift('mpesa');
+  if (!methods.includes('ecocash')) methods.splice(1, 0, 'ecocash');
   return {
     businessName: s.businessName || 'The Precious Creations',
     logoUrl: s.logoUrl || '/logo.png',
@@ -449,6 +449,9 @@ function toClientSettings(s) {
     currencySymbol: s.currencySymbol || 'M',
     paymentMethods: methods,
     mpesaMerchantNumber: s.mpesaMerchantNumber || '80227',
+    mpesaReferenceHint: s.mpesaReferenceHint || 'precious creations',
+    ecocashNumber: s.ecocashNumber || '68390221',
+    ecocashAccountName: s.ecocashAccountName || 'Ntsatsi Ratlou',
     deliveryFee: Number(s.deliveryFee || 0),
     lowStockThreshold: Number(s.lowStockThreshold ?? 5),
   };
@@ -461,14 +464,32 @@ exports.getPublicPaymentInfo = async (_req, res, next) => {
       s = await Settings.create({
         key: 'business',
         mpesaMerchantNumber: '80227',
-        paymentMethods: ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer'],
+        mpesaReferenceHint: 'precious creations',
+        ecocashNumber: '68390221',
+        ecocashAccountName: 'Ntsatsi Ratlou',
+        paymentMethods: ['mpesa', 'ecocash', 'cod'],
       });
-    } else if (!s.mpesaMerchantNumber) {
-      s.mpesaMerchantNumber = '80227';
-      if (!s.paymentMethods?.includes('mpesa')) {
-        s.paymentMethods = ['mpesa', ...(s.paymentMethods || [])];
+    } else {
+      let dirty = false;
+      if (!s.mpesaMerchantNumber) {
+        s.mpesaMerchantNumber = '80227';
+        dirty = true;
       }
-      await s.save();
+      if (!s.ecocashNumber) {
+        s.ecocashNumber = '68390221';
+        s.ecocashAccountName = s.ecocashAccountName || 'Ntsatsi Ratlou';
+        dirty = true;
+      }
+      if (!s.mpesaReferenceHint) {
+        s.mpesaReferenceHint = 'precious creations';
+        dirty = true;
+      }
+      const methods = Array.isArray(s.paymentMethods) ? [...s.paymentMethods] : [];
+      if (!methods.includes('mpesa') || !methods.includes('ecocash')) {
+        s.paymentMethods = ['mpesa', 'ecocash', ...methods.filter((m) => m !== 'mpesa' && m !== 'ecocash')];
+        dirty = true;
+      }
+      if (dirty) await s.save();
     }
     const data = toClientSettings(s);
     res.status(200).json({
@@ -481,6 +502,9 @@ exports.getPublicPaymentInfo = async (_req, res, next) => {
         deliveryFee: data.deliveryFee,
         paymentMethods: data.paymentMethods,
         mpesaMerchantNumber: data.mpesaMerchantNumber,
+        mpesaReferenceHint: data.mpesaReferenceHint,
+        ecocashNumber: data.ecocashNumber,
+        ecocashAccountName: data.ecocashAccountName,
       },
     });
   } catch (err) {
@@ -512,6 +536,9 @@ exports.updateSettings = async (req, res, next) => {
       'currencySymbol',
       'paymentMethods',
       'mpesaMerchantNumber',
+      'mpesaReferenceHint',
+      'ecocashNumber',
+      'ecocashAccountName',
       'deliveryFee',
       'lowStockThreshold',
     ];
@@ -521,6 +548,9 @@ exports.updateSettings = async (req, res, next) => {
     }
     if (patch.mpesaMerchantNumber != null) {
       patch.mpesaMerchantNumber = String(patch.mpesaMerchantNumber).trim() || '80227';
+    }
+    if (patch.ecocashNumber != null) {
+      patch.ecocashNumber = String(patch.ecocashNumber).trim() || '68390221';
     }
     if (patch.deliveryFee != null) patch.deliveryFee = Number(patch.deliveryFee) || 0;
     if (patch.lowStockThreshold != null) patch.lowStockThreshold = Math.max(0, Number(patch.lowStockThreshold) || 0);

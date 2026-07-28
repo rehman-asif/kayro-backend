@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { uploadImage } = require('../controllers/uploadController');
+const { uploadImage, uploadPaymentProof } = require('../controllers/uploadController');
 const { protectAdmin } = require('../middleware/adminAuth');
 
 const router = express.Router();
@@ -18,5 +18,7 @@ const upload = multer({
 });
 
 router.post('/image', protectAdmin, upload.single('file'), uploadImage);
+// Public: customers upload M-PESA / EcoCash payment screenshots at checkout
+router.post('/payment-proof', upload.single('file'), uploadPaymentProof);
 
 module.exports = router;

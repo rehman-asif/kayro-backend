@@ -12,10 +12,12 @@ const uploadImage = async (req, res, next) => {
       throw new Error('Please upload an image file');
     }
 
+    const folder = req.uploadFolder || 'tpc-products';
+
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: 'tpc-products',
+          folder,
           resource_type: 'image',
         },
         (error, uploaded) => {
@@ -43,4 +45,9 @@ const uploadImage = async (req, res, next) => {
   }
 };
 
-module.exports = { uploadImage };
+const uploadPaymentProof = async (req, res, next) => {
+  req.uploadFolder = 'tpc-payment-proofs';
+  return uploadImage(req, res, next);
+};
+
+module.exports = { uploadImage, uploadPaymentProof };

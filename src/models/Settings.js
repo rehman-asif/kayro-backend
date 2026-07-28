@@ -14,11 +14,26 @@ const settingsSchema = new mongoose.Schema(
     currencySymbol: { type: String, default: 'M' },
     paymentMethods: {
       type: [String],
-      default: ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer'],
+      default: ['mpesa', 'ecocash', 'cod'],
     },
     mpesaMerchantNumber: {
       type: String,
       default: '80227',
+      trim: true,
+    },
+    mpesaReferenceHint: {
+      type: String,
+      default: 'precious creations',
+      trim: true,
+    },
+    ecocashNumber: {
+      type: String,
+      default: '68390221',
+      trim: true,
+    },
+    ecocashAccountName: {
+      type: String,
+      default: 'Ntsatsi Ratlou',
       trim: true,
     },
     deliveryFee: { type: Number, default: 0 },

@@ -15,6 +15,7 @@ function toClientOrder(doc) {
     deliveryFee: doc.deliveryFee || 0,
     paymentMethod: doc.paymentMethod,
     paymentReference: doc.paymentReference || '',
+    paymentProofUrl: doc.paymentProofUrl || '',
     paymentStatus: doc.paymentStatus || 'pending',
     status: doc.status,
     customerId: doc.customerId ? String(doc.customerId) : null,
@@ -308,6 +309,7 @@ exports.createOnlineCheckout = async (req, res, next) => {
       deliveryMethod = 'delivery',
       paymentMethod = 'mpesa',
       paymentReference = '',
+      paymentProofUrl = '',
     } = req.body;
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -319,12 +321,26 @@ exports.createOnlineCheckout = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Name and phone are required.' });
     }
 
-    const allowedPay = ['mpesa', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer', 'other'];
+    const allowedPay = ['mpesa', 'ecocash', 'cod', 'cash', 'card', 'mobile_money', 'bank_transfer', 'other'];
     const payMethod = allowedPay.includes(paymentMethod) ? paymentMethod : 'mpesa';
+    if ((payMethod === 'mpesa' || payMethod === 'ecocash') && !String(paymentProofUrl || '').trim()) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload a payment screenshot before placing the order.',
+      });
+    }
 
     const Settings = require('../models/Settings');
     let settings = await Settings.findOne({ key: 'business' });
-    if (!settings) settings = await Settings.create({ key: 'business', mpesaMerchantNumber: '80227' });
+    if (!settings) {
+      settings = await Settings.create({
+        key: 'business',
+        mpesaMerchantNumber: '80227',
+        ecocashNumber: '68390221',
+        ecocashAccountName: 'Ntsatsi Ratlou',
+      });
+    }
     const deliveryFee =
       deliveryMethod === 'pickup' ? 0 : Math.max(0, Number(settings.deliveryFee || 0));
 
@@ -342,10 +358,19 @@ exports.createOnlineCheckout = async (req, res, next) => {
     let orderNotes = String(notes || '').trim();
     if (payMethod === 'mpesa') {
       const merchant = settings.mpesaMerchantNumber || '80227';
+      const refHint = settings.mpesaReferenceHint || 'precious creations';
       const refNote = paymentReference
         ? `M-PESA ref: ${String(paymentReference).trim()}`
-        : 'M-PESA payment pending confirmation';
-      orderNotes = [orderNotes, `Pay via M-PESA merchant ${merchant}`, refNote].filter(Boolean).join(' | ');
+        : `M-PESA pending (use reference: ${refHint})`;
+      orderNotes = [orderNotes, `Pay via M-PESA till ${merchant}`, refNote].filter(Boolean).join(' | ');
+    }
+    if (payMethod === 'ecocash') {
+      const ecoNum = settings.ecocashNumber || '68390221';
+      const ecoName = settings.ecocashAccountName || 'Ntsatsi Ratlou';
+      const refNote = paymentReference
+        ? `EcoCash ref: ${String(paymentReference).trim()}`
+        : 'EcoCash payment pending confirmation';
+      orderNotes = [orderNotes, `Pay via EcoCash to ${ecoNum} (${ecoName})`, refNote].filter(Boolean).join(' | ');
     }
 
     const [order] = await Order.create(
@@ -359,6 +384,7 @@ exports.createOnlineCheckout = async (req, res, next) => {
           total,
           paymentMethod: payMethod,
           paymentReference: String(paymentReference || '').trim(),
+          paymentProofUrl: String(paymentProofUrl || '').trim(),
           paymentStatus: 'pending',
           status: 'new',
           customerId: customer?._id || null,

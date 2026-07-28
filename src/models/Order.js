@@ -33,10 +33,15 @@ const orderSchema = new mongoose.Schema(
     deliveryFee: { type: Number, default: 0, min: 0 },
     paymentMethod: {
       type: String,
-      enum: ['cash', 'card', 'mobile_money', 'bank_transfer', 'other', 'cod', 'mpesa'],
+      enum: ['cash', 'card', 'mobile_money', 'bank_transfer', 'other', 'cod', 'mpesa', 'ecocash'],
       default: 'cash',
     },
     paymentReference: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    paymentProofUrl: {
       type: String,
       default: '',
       trim: true,
